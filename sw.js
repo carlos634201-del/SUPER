@@ -1,5 +1,5 @@
 // Funciona sin internet: busca primero en la red (así se actualiza) y si no hay conexión usa la copia guardada.
-const C="super-v1",A=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png"];
+const C="super-v2",A=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png"];
 self.addEventListener("install",e=>e.waitUntil(caches.open(C).then(c=>c.addAll(A)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",e=>e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch",e=>{if(e.request.method!=="GET")return;
