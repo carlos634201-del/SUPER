@@ -69,13 +69,14 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
   <div class="st"><button id="cm" aria-label="Menos">−</button><b id="cq">1</b><button id="cpl" aria-label="Más">+</button></div></div>
   <div class="chips"><button data-q="2">×2</button><button data-q="3">×3</button><button data-q="4">×4</button><button data-q="6">×6</button><button data-q="12">×12</button></div></div>
 <footer>
+  <div id="qrow" class="bar" style="display:none;margin-bottom:8px"><input id="q" placeholder="cerveza 1500 6 unidades" autocomplete="off" enterkeyhint="go"><button class="sm" id="qgo" aria-label="Agregar">➤</button></div>
   <div class="bar">
     <button class="mic" id="mic" aria-label="Hablar">🎤</button>
-    <input id="q" placeholder="cerveza 1500" autocomplete="off" enterkeyhint="go">
+    <button class="sm" id="esc" aria-label="Escribir" title="Cargar sin voz">✎</button>
     <button class="sm" id="undo" aria-label="Deshacer">↩</button>
-    <button class="fin" id="fin">FINAL</button>
+    <button class="fin" id="fin" style="flex:1">FINAL</button>
   </div>
-  <div class="hint" id="hint">Decí «cerveza 1500». Después usá + / − o decí «por seis».</div>
+  <div class="hint" id="hint">Tocá 🎤 y decí «cerveza 1500 6 unidades». O usá + / −.</div>
 </footer>
 
 <div class="sheet" id="fs"><div class="box">
@@ -117,11 +118,18 @@ function num(s){s=String(s||'').replace(/[$\s]/g,'');if(!s)return NaN;
   var v=parseFloat(s);return isFinite(v)?v:NaN}
 function qty(s){var m=words2num(String(s||'')).replace(/[*x×]|\bpor\b/g,' ').match(/\d+/);var q=m?parseInt(m[0],10):NaN;return q>0?q:NaN}
 function parse(raw){
-  var t=words2num(raw).replace(/pesos?|\$/g,' '),q=1,m=t.match(/(?:\*|×|\bx\b|\bpor\b)\s*(\d+)/);
-  if(m){q=parseInt(m[1],10)||1;t=t.replace(m[0],' ')}
+  var t=words2num(raw).replace(/pesos?|\$/g,' '),q=1,hasQ=false,m;
+  m=t.match(/(\d+)\s*(?:unidades?|unid\b|u\b)/);
+  if(!m)m=t.match(/(?:\*|×|\bx\b|\bpor\b|\bllevo\b|\bllevar\b|\blleva\b)\s*(\d+)/);
+  if(m){q=parseInt(m[1],10)||1;hasQ=true;t=t.replace(m[0],' ')}
   var ns=t.match(/\d[\d.]*(?:,\d+)?/g)||[],p=NaN;
-  if(ns.length){var l=ns[ns.length-1];p=num(l);var k=t.lastIndexOf(l);t=t.slice(0,k)+' '+t.slice(k+l.length)}
-  var n=t.replace(/\b(a|cuesta|sale)\b/g,' ').replace(/\s+/g,' ').trim();
+  if(ns.length>=2&&!hasQ){
+    var vals=ns.map(num).filter(function(v){return !isNaN(v)});
+    var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals);
+    if(mn<=99&&mx>mn){q=mn;hasQ=true;p=mx;
+      [String(ns[vals.indexOf(mn)]),String(ns[vals.indexOf(mx)])].forEach(function(x){t=t.replace(x,' ')})}}
+  if(isNaN(p)&&ns.length){var l=ns[ns.length-1];if(t.indexOf(l)>-1){p=num(l);var k=t.lastIndexOf(l);t=t.slice(0,k)+' '+t.slice(k+l.length)}}
+  var n=t.replace(/\b(a|de|cuesta|sale|cada|una|un)\b/g,' ').replace(/\s+/g,' ').trim();
   return{name:n.charAt(0).toUpperCase()+n.slice(1),price:p,qty:q}}
 
 /* ---- avisos y voz ---- */
@@ -177,8 +185,8 @@ function quick(raw){
   raw=(raw||'').trim();if(!raw)return;
   $('hint').textContent='Entendí: «'+raw+'»';
   if(isFinal(raw)){openF();return}
-  var m=words2num(raw).trim().toLowerCase().match(/^(\*|x|×|por)?\s*(\d+)$/);
-  if(cur()&&m&&(m[1]||+m[2]<=99)){setQty(parseInt(m[2],10));$('q').value='';return}
+  var m=words2num(raw).trim().toLowerCase().match(/^(\*|x|×|por|llevo|llevar)?\s*(\d+)\s*(unidades?|unid)?$/);
+  if(cur()&&m&&(m[1]||m[3]||+m[2]<=99)){setQty(parseInt(m[2],10));$('q').value='';return}
   var p=parse(raw);
   if(isNaN(p.price)||p.price<=0){toast('No entendí el precio. Decí: «cerveza 1500»');$('q').value=raw;return}
   $('q').value='';addItem(p)}
@@ -202,6 +210,8 @@ $('mic').onclick=function(){listen($('mic'),quick)};
 $('q').addEventListener('keydown',function(e){if(e.key==='Enter')quick(e.target.value)});
 $('undo').onclick=function(){if(!cart.length){toast('No hay nada para deshacer');return}var i=cart.pop();if(curId===i.id)curId=null;render();toast('Quitado: '+i.name)};
 $('fin').onclick=openF;
+$('esc').onclick=function(){var r=$('qrow');var open=r.style.display==='none';r.style.display=open?'flex':'none';if(open)$('q').focus();else $('q').blur()};
+$('qgo').onclick=function(){quick($('q').value)};
 $('cm').onclick=function(){var it=cur();if(it)setQty(it.qty-1)};
 $('cpl').onclick=function(){var it=cur();if(it)setQty(it.qty+1)};
 Array.prototype.forEach.call(document.querySelectorAll('.chips button'),function(b){b.onclick=function(){setQty(parseInt(b.dataset.q,10))}});
@@ -214,7 +224,7 @@ $('copy').onclick=function(){
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast('Ticket copiado')},function(){prompt('Copiá el ticket:',t)});
   else prompt('Copiá el ticket:',t)};
 $('clear').onclick=function(){if(confirm('¿Vaciar el carrito y empezar otra compra?')){cart=[];render();$('fs').classList.remove('show')}};
-if(!SR){['mic','fmic'].forEach(function(i){$(i).style.display='none'});$('hint').textContent='Escribí: «cerveza 1500» y Enter. Para voz usá Chrome.'}
+if(!SR){['mic','fmic'].forEach(function(i){$(i).style.display='none'});$('qrow').style.display='flex';$('hint').textContent='Escribí: «cerveza 1500 6 unidades». Para voz usá Chrome.'}
 render();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});
 </script>
